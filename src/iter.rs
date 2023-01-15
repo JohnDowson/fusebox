@@ -62,7 +62,7 @@ where
         if self.n == self.fused.len() {
             return None;
         }
-        let r = self.fused.get_raw_mut(self.n);
+        let r = self.fused.get_raw(self.n);
         self.n += 1;
         Some(unsafe { &mut *r })
     }

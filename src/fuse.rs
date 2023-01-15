@@ -1,3 +1,4 @@
+use crate::iter::{Iter, IterMut};
 use std::{
     alloc::{alloc, dealloc, Layout},
     fmt::Debug,
@@ -5,8 +6,13 @@ use std::{
     ptr::{self, addr_of_mut, Pointee},
 };
 
-use crate::iter::{Iter, IterMut};
-
+/// Contigous type-erased append-only vector
+///
+///
+/// `Dyn` shall be `dyn Trait`
+///
+///
+/// `Sz` shall be an unsigned integer no larger than [`usize`]
 pub struct FuseBox<Dyn, Sz>
 where
     Dyn: ?Sized,
@@ -50,6 +56,7 @@ impl<Dyn, Sz> FuseBox<Dyn, Sz>
 where
     Dyn: ?Sized,
 {
+    /// Creates a new [`FuseBox<Dyn, Sz>`].
     pub fn new() -> Self {
         Self {
             inner: std::ptr::null_mut(),
@@ -61,6 +68,7 @@ where
         }
     }
 
+    /// Returns the length of this [`FuseBox<Dyn, Sz>`] in items.
     pub fn len(&self) -> usize {
         self.len_items
     }
@@ -95,7 +103,16 @@ where
         }
     }
 
-    pub fn push<T: 'static>(&mut self, v: T, meta: <Dyn as Pointee>::Metadata)
+    /// Appends an element to the vector.
+    ///
+    /// # Preconditions
+    ///
+    /// `meta` MUST be derived from the same value that's being appended.
+    ///
+    /// # Panics
+    ///
+    /// Panics if size of new element is larger than `Sz::MAX`.
+    pub unsafe fn push<T: 'static>(&mut self, v: T, meta: <Dyn as Pointee>::Metadata)
     where
         Sz: Copy,
         Sz: TryFrom<usize>,
@@ -153,7 +170,7 @@ where
         unsafe { &mut (*item.cast::<Unbox<(), Dyn, Sz>>()).size }
     }
 
-    pub(crate) fn get_raw(&self, n: usize) -> *const Dyn
+    pub(crate) fn get_raw(&self, n: usize) -> *mut Dyn
     where
         Sz: Into<usize>,
         Sz: Copy,
@@ -167,42 +184,31 @@ where
             }
         }
         unsafe {
-            let item = &mut *item.cast::<Unbox<(), Dyn, Sz>>();
-            let meta = item.meta;
-            let ptr = &item.inner;
-            ptr::from_raw_parts::<Dyn>(ptr, meta)
-        }
-    }
-
-    pub(crate) fn get_raw_mut(&mut self, n: usize) -> *mut Dyn
-    where
-        Sz: Into<usize>,
-        Sz: Copy,
-    {
-        assert!(n <= self.len_items);
-        let mut item = self.inner;
-        for _ in 0..n {
-            unsafe {
-                let size = (&*item.cast::<Unbox<(), Dyn, Sz>>()).size;
-                item = item.add(size.into())
-            }
-        }
-        unsafe {
-            let item = &mut *item.cast::<Unbox<(), Dyn, Sz>>();
-            let meta = item.meta;
-            let ptr = &mut item.inner;
+            let item = item.cast::<Unbox<(), Dyn, Sz>>();
+            let meta = (&*item).meta;
+            let ptr = addr_of_mut!((*item).inner);
             ptr::from_raw_parts_mut::<Dyn>(ptr, meta)
         }
     }
 
+    /// Retrieves `&mut Dyn` from [`FuseBox`].
+    ///
+    /// # Panics
+    ///
+    /// Panics when `n >= len`
     pub fn get_mut(&mut self, n: usize) -> &mut Dyn
     where
         Sz: Into<usize>,
         Sz: Copy,
     {
-        unsafe { &mut *self.get_raw_mut(n) }
+        unsafe { &mut *self.get_raw(n) }
     }
 
+    /// Retrieves `&Dyn` from [`FuseBox`].
+    ///
+    /// # Panics
+    ///
+    /// Panics when `n >= len`
     pub fn get(&self, n: usize) -> &Dyn
     where
         Sz: Into<usize>,
@@ -211,10 +217,12 @@ where
         unsafe { &*self.get_raw(n) }
     }
 
+    /// Returns an iterator over `&Dyn` stored in this [`FuseBox`]
     pub fn iter<'f>(&'f self) -> Iter<'f, Dyn, Sz> {
         Iter::new(self)
     }
 
+    /// Returns an iterator over `&mut Dyn` stored in this [`FuseBox`].
     pub fn iter_mut<'f>(&'f mut self) -> IterMut<'f, Dyn, Sz> {
         IterMut::new(self)
     }
