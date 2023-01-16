@@ -6,6 +6,14 @@ use std::{
     ptr::{self, drop_in_place, NonNull, Pointee},
 };
 
+struct Header<Dyn>
+where
+    Dyn: ?Sized,
+{
+    offset: usize,
+    meta: <Dyn as Pointee>::Metadata,
+}
+
 /// Contigous type-erased append-only vector
 ///
 /// `Dyn` shall be `dyn Trait`
@@ -15,6 +23,7 @@ where
 {
     headers: Vec<Header<Dyn>>,
     inner: NonNull<u8>,
+    last_size: usize,
     max_align: usize,
     len_bytes: usize,
     cap_bytes: usize,
@@ -60,6 +69,7 @@ where
         Self {
             headers: Default::default(),
             inner: std::ptr::NonNull::dangling(),
+            last_size: 0,
             max_align: 0,
             len_bytes: 0,
             cap_bytes: 0,
@@ -127,7 +137,7 @@ where
         let layout = Layout::new::<T>();
         let header = self.make_header(layout, meta);
         let offset = header.offset;
-        let size = header.size;
+
         if layout.size() == 0 {
             unsafe { self.inner.as_ptr().add(offset).cast::<T>().write(v) }
             self.headers.push(header);
@@ -142,29 +152,18 @@ where
             unsafe { self.inner.as_ptr().add(offset).cast::<T>().write(v) }
             self.headers.push(header);
         }
-        self.len_bytes = offset + size;
+        self.last_size = layout.size();
+        self.len_bytes = offset + layout.size();
     }
 
     #[inline]
     fn make_header(&mut self, layout: Layout, meta: <Dyn as Pointee>::Metadata) -> Header<Dyn> {
         if !self.is_empty() {
-            let Header {
-                offset,
-                size,
-                meta: _,
-            } = self.headers[self.len() - 1];
-            let offset = round_up(offset + size, layout.align());
-            Header {
-                offset,
-                size: layout.size(),
-                meta,
-            }
+            let Header { offset, meta: _ } = self.headers[self.len() - 1];
+            let offset = round_up(offset + self.last_size, layout.align());
+            Header { offset, meta }
         } else {
-            Header {
-                offset: 0,
-                size: layout.size(),
-                meta,
-            }
+            Header { offset: 0, meta }
         }
     }
 
@@ -182,11 +181,7 @@ where
 
     #[inline]
     pub(crate) unsafe fn get_raw(&self, n: usize) -> *mut Dyn {
-        let Header {
-            offset,
-            size: _,
-            meta,
-        } = self.headers[n];
+        let Header { offset, meta } = self.headers[n];
         unsafe {
             let ptr = self.inner.as_ptr().add(offset).cast();
             ptr::from_raw_parts_mut::<Dyn>(ptr, meta)
@@ -222,7 +217,10 @@ where
     }
 }
 
-impl<Dyn> Index<usize> for FuseBox<Dyn> {
+impl<Dyn> Index<usize> for FuseBox<Dyn>
+where
+    Dyn: ?Sized,
+{
     type Output = Dyn;
 
     #[inline]
@@ -232,21 +230,15 @@ impl<Dyn> Index<usize> for FuseBox<Dyn> {
     }
 }
 
-impl<Dyn> IndexMut<usize> for FuseBox<Dyn> {
+impl<Dyn> IndexMut<usize> for FuseBox<Dyn>
+where
+    Dyn: ?Sized,
+{
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         assert!(index < self.len());
         unsafe { &mut *self.get_raw(index) }
     }
-}
-
-struct Header<Dyn>
-where
-    Dyn: ?Sized,
-{
-    offset: usize,
-    size: usize,
-    meta: <Dyn as Pointee>::Metadata,
 }
 
 fn round_up(n: usize, m: usize) -> usize {

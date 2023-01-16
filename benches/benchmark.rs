@@ -83,11 +83,13 @@ calc_struct!(D, *; a, b, c);
 calc_struct!(E, *; a, b);
 calc_struct!(F, *; a);
 
+const N: usize = 500;
+
 fn iteration(c: &mut Criterion) {
-    const N: usize = 500;
-    let mut v = prepare_vec(N);
-    let mut f = prepare_fused(N);
-    c.bench_function("Linear Vec", |b| {
+    let mut g = c.benchmark_group("Linear access");
+    g.bench_with_input("Vec", &N, |b, &n| {
+        let mut v = prepare_vec(n);
+
         b.iter(|| {
             for v in v.iter_mut() {
                 v.calculate()
@@ -96,8 +98,10 @@ fn iteration(c: &mut Criterion) {
                 black_box(v.get_result());
             }
         })
-    })
-    .bench_function("Linear FuseBox", |b| {
+    });
+    g.bench_with_input("FuseBox", &N, |b, &n| {
+        let mut f = prepare_fused(n);
+
         b.iter(|| {
             for v in f.iter_mut() {
                 v.calculate()
@@ -107,44 +111,40 @@ fn iteration(c: &mut Criterion) {
             }
         })
     });
+    g.finish();
 }
 
 fn random_access(c: &mut Criterion) {
-    const N: usize = 500;
-    let mut v = prepare_vec(N);
-    let mut f = prepare_fused(N);
-    c.bench_function("Random Vec", |b| {
+    let mut g = c.benchmark_group("Random access");
+    g.bench_with_input("Vec", &N, |b, &n| {
         let mut r = StdRng::seed_from_u64(69);
-        b.iter(|| {
-            for _ in 0..N {
-                let n = r.gen_range(0..N);
-                let v = v.get_mut(n).unwrap();
-                v.calculate()
-            }
+        let mut v = prepare_vec(n);
 
-            for v in v.iter() {
-                black_box(v.get_result());
-            }
-        })
-    })
-    .bench_function("Random FuseBox", |b| {
-        let mut r = StdRng::seed_from_u64(69);
         b.iter(|| {
-            for _ in 0..N {
-                let n = r.gen_range(0..N);
-                let v = f.get_mut(n).unwrap();
-                v.calculate()
-            }
+            let n = r.gen_range(0..n);
+            let v = &mut v[n];
+            v.calculate();
 
-            for v in f.iter() {
-                black_box(v.get_result());
-            }
+            black_box(v.get_result());
         })
     });
+    g.bench_with_input("FuseBox", &N, |b, &n| {
+        let mut r = StdRng::seed_from_u64(69);
+        let mut f = prepare_fused(n);
+
+        b.iter(|| {
+            let n = r.gen_range(0..n);
+            let v = &mut f[n];
+            v.calculate();
+            v.get_result();
+        })
+    });
+    g.finish();
 }
 
 fn config(pprof: bool) -> Criterion {
     let c = Criterion::default()
+        .sample_size(200)
         .plotting_backend(PlottingBackend::Gnuplot)
         .with_plots();
     if pprof {
