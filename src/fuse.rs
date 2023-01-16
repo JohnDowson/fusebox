@@ -1,60 +1,50 @@
 use crate::{
     iter::{Iter, IterMut},
-    AsDyn, Size,
+    AsDyn,
 };
 use std::{
     alloc::{alloc, dealloc, Layout},
     marker::PhantomData,
-    ptr::{self, addr_of_mut, drop_in_place, Pointee},
+    ops::{Index, IndexMut},
+    ptr::{self, drop_in_place, NonNull, Pointee},
 };
 
 /// Contigous type-erased append-only vector
 ///
-///
 /// `Dyn` shall be `dyn Trait`
-///
-/// `Sz` shall be an unsigned integer no larger than [`usize`] and is used to store the size of element.
-///
-/// You might wish to use a size smaller than [`usize`] to reduce memory overhead, if you know that your types will be small enough.
-pub struct FuseBox<Dyn, Sz>
+pub struct FuseBox<Dyn>
 where
     Dyn: ?Sized,
-    Sz: Size,
-    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
-    inner: *mut u8,
+    headers: Vec<Header<Dyn>>,
+    inner: NonNull<u8>,
     max_align: usize,
-    len_items: usize,
     len_bytes: usize,
     cap_bytes: usize,
-    _tag: PhantomData<(Box<Dyn>, Sz)>,
+    _tag: PhantomData<Dyn>,
 }
 
-impl<Dyn, Sz> Default for FuseBox<Dyn, Sz>
+impl<Dyn> Default for FuseBox<Dyn>
 where
     Dyn: ?Sized,
-    Sz: Size,
-    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<Dyn, Sz> Drop for FuseBox<Dyn, Sz>
+impl<Dyn> Drop for FuseBox<Dyn>
 where
     Dyn: ?Sized,
-    Sz: Size,
-    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
     fn drop(&mut self) {
-        if !self.inner.is_null() {
+        if self.cap_bytes != 0 {
             unsafe {
                 for val in self.iter_mut() {
                     drop_in_place(val);
                 }
                 dealloc(
-                    self.inner,
+                    self.inner.as_ptr(),
                     Layout::from_size_align_unchecked(self.cap_bytes, self.max_align),
                 );
             }
@@ -62,44 +52,36 @@ where
     }
 }
 
-unsafe impl<Dyn, Sz> Send for FuseBox<Dyn, Sz>
-where
-    Dyn: ?Sized,
-    Sz: Size,
-    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
-{
-}
+unsafe impl<Dyn> Send for FuseBox<Dyn> where Dyn: ?Sized {}
 
-impl<Dyn, Sz> FuseBox<Dyn, Sz>
+impl<Dyn> FuseBox<Dyn>
 where
     Dyn: ?Sized,
-    Sz: Size,
-    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
-    /// Creates a new [`FuseBox<Dyn, Sz>`].
+    /// Creates a new [`FuseBox<Dyn>`].
     pub fn new() -> Self {
         Self {
-            inner: std::ptr::null_mut(),
+            headers: Default::default(),
+            inner: std::ptr::NonNull::dangling(),
             max_align: 0,
-            len_items: 0,
             len_bytes: 0,
             cap_bytes: 0,
             _tag: Default::default(),
         }
     }
 
-    /// Returns the length of this [`FuseBox<Dyn, Sz>`] in items.
+    /// Returns the length of this [`FuseBox<Dyn>`] in items.
     pub fn len(&self) -> usize {
-        self.len_items
+        self.headers.len()
     }
 
     fn realloc(&mut self, min_size: usize) {
-        if self.inner.is_null() {
+        if self.cap_bytes == 0 {
             unsafe {
                 let layout = Layout::from_size_align_unchecked(min_size, self.max_align);
                 self.cap_bytes = layout.pad_to_align().size();
                 let new = alloc(layout);
-                self.inner = new;
+                self.inner = NonNull::new_unchecked(new);
             }
         }
         let old = self.inner;
@@ -117,19 +99,72 @@ where
             let layout = Layout::from_size_align_unchecked(size, self.max_align);
             self.cap_bytes = layout.pad_to_align().size();
             let new = alloc(layout);
-            std::ptr::copy(old, new, self.len_bytes);
-            self.inner = new;
-            dealloc(old, old_layout);
+            std::ptr::copy(old.as_ptr(), new, self.len_bytes);
+            self.inner = NonNull::new_unchecked(new);
+            dealloc(old.as_ptr(), old_layout);
+        }
+    }
+
+    /// Appends an element to the vector.
+    ///
+    /// # Preconditions
+    ///
+    /// `meta` MUST be derived from the same value that's being appended.
+    ///
+    /// # Note
+    ///
+    /// this method does not require that `T` impls [`Send`], making it unsound to send this
+    /// instance of [`FuseBox`] across thread after pushing a `T: !Send`
+    pub unsafe fn push_unsafe<T>(&mut self, v: T, meta: <Dyn as Pointee>::Metadata)
+    where
+        T: 'static,
+    {
+        let layout = Layout::new::<T>();
+        let header = self.make_header(layout, meta);
+        let offset = header.offset;
+        let size = header.size;
+        if layout.size() == 0 {
+            unsafe { self.inner.as_ptr().add(offset).cast::<T>().write(v) }
+            self.headers.push(header);
+        } else {
+            if self.max_align < layout.align() {
+                self.max_align = layout.align()
+            }
+            if self.cap_bytes - self.len_bytes < layout.size() {
+                self.realloc(layout.size())
+            }
+
+            unsafe { self.inner.as_ptr().add(offset).cast::<T>().write(v) }
+            self.headers.push(header);
+        }
+        self.len_bytes = offset + size;
+    }
+
+    fn make_header(&mut self, layout: Layout, meta: <Dyn as Pointee>::Metadata) -> Header<Dyn> {
+        if self.len() != 0 {
+            let Header {
+                offset,
+                size,
+                meta: _,
+            } = self.headers[self.len() - 1];
+            let offset = round_up(offset + size, layout.align());
+            Header {
+                offset,
+                size: layout.size(),
+                meta,
+            }
+        } else {
+            Header {
+                offset: 0,
+                size: layout.size(),
+                meta,
+            }
         }
     }
 
     /// Safely appends an element to the vector.
     ///
     /// Guarantees that metadata matches the type by requiring that [`AsDyn`] is implemented for T
-    ///
-    /// # Panics
-    ///
-    /// Panics if size of new element is larger than `Sz::MAX`.
     pub fn push<T>(&mut self, v: T)
     where
         T: 'static,
@@ -143,13 +178,7 @@ where
         }
     }
 
-    /// Requires that `T:` [`Send`] making
-    ///
-    /// Guarantees that metadata matches the type by requiring that [`AsDyn`] is implemented for T
-    ///
-    /// # Panics
-    ///
-    /// Panics if size of new element is larger than `Sz::MAX`.
+    /// Requires that `T:` [`Send`]
     pub unsafe fn push_safer<T>(&mut self, v: T, meta: <Dyn as Pointee>::Metadata)
     where
         T: 'static,
@@ -158,125 +187,67 @@ where
         unsafe { self.push_unsafe(v, meta) }
     }
 
-    /// Appends an element to the vector.
-    ///
-    /// # Preconditions
-    ///
-    /// `meta` MUST be derived from the same value that's being appended.
-    ///
-    /// # Note
-    ///
-    /// this method does not require that `T` impls [`Send`], making it unsound to send this
-    /// instance of [`FuseBox`] across thread after pushing a `T: !Send`
-    ///
-    /// # Panics
-    ///
-    /// Panics if size of new element is larger than `Sz::MAX`.
-    pub unsafe fn push_unsafe<T>(&mut self, v: T, meta: <Dyn as Pointee>::Metadata)
-    where
-        T: 'static,
-    {
-        let layout = Layout::new::<Unbox<T, Dyn, Sz>>();
-        if self.max_align < layout.align() {
-            self.max_align = layout.align()
-        }
-        if self.cap_bytes - self.len_bytes < layout.size() {
-            self.realloc(layout.size())
-        }
-        let v = Unbox {
-            size: layout.size().try_into().expect("Element too large"),
-            meta,
-            inner: v,
-        };
-        if let Some(n) = self.len_items.checked_sub(1) {
-            let last_size = self.get_size(n);
-            *last_size = round_up((*last_size).into(), layout.align())
-                .try_into()
-                .expect("Element too large");
-        }
-
-        self.len_bytes = round_up(self.len_bytes, layout.align());
-        unsafe {
-            self.inner
-                .add(self.len_bytes)
-                .cast::<Unbox<T, Dyn, Sz>>()
-                .write(v)
-        }
-        self.len_bytes += layout.size();
-        self.len_items += 1;
-    }
-
-    fn get_size(&mut self, n: usize) -> &mut Sz {
-        assert!(
-            n <= self.len_items,
-            "Assertion failed ({n}<{})",
-            self.len_items
-        );
-
-        let mut item = self.inner;
-        for _ in 0..n {
-            unsafe {
-                let size = (&*item.cast::<Unbox<(), Dyn, Sz>>()).size;
-                item = item.add(size.into())
-            }
-        }
-        unsafe { &mut (*item.cast::<Unbox<(), Dyn, Sz>>()).size }
-    }
-
     pub(crate) fn get_raw(&self, n: usize) -> *mut Dyn {
-        assert!(n <= self.len_items);
-        let mut item = self.inner;
-        for _ in 0..n {
-            unsafe {
-                let size = (&*item.cast::<Unbox<(), Dyn, Sz>>()).size;
-                item = item.add(size.into())
-            }
-        }
+        assert!(n <= self.len());
+        let Header {
+            offset,
+            size: _,
+            meta,
+        } = self.headers[n];
         unsafe {
-            let item = item.cast::<Unbox<(), Dyn, Sz>>();
-            let meta = (&*item).meta;
-            let ptr = addr_of_mut!((*item).inner);
+            let ptr = self.inner.as_ptr().add(offset).cast();
             ptr::from_raw_parts_mut::<Dyn>(ptr, meta)
         }
     }
 
     /// Retrieves `&mut Dyn` from [`FuseBox`].
-    ///
-    /// # Panics
-    ///
-    /// Panics when `n >= len`
-    pub fn get_mut(&mut self, n: usize) -> &mut Dyn {
-        unsafe { &mut *self.get_raw(n) }
+    pub fn get_mut(&mut self, n: usize) -> Option<&mut Dyn> {
+        if self.len() <= n {
+            return None;
+        }
+        unsafe { Some(&mut *self.get_raw(n)) }
     }
 
     /// Retrieves `&Dyn` from [`FuseBox`].
-    ///
-    /// # Panics
-    ///
-    /// Panics when `n >= len`
-    pub fn get(&self, n: usize) -> &Dyn {
-        unsafe { &*self.get_raw(n) }
+    pub fn get(&self, n: usize) -> Option<&Dyn> {
+        if self.len() <= n {
+            return None;
+        }
+        unsafe { Some(&*self.get_raw(n)) }
     }
 
     /// Returns an iterator over `&Dyn` stored in this [`FuseBox`]
-    pub fn iter<'f>(&'f self) -> Iter<'f, Dyn, Sz> {
+    pub fn iter<'f>(&'f self) -> Iter<'f, Dyn> {
         Iter::new(self)
     }
 
     /// Returns an iterator over `&mut Dyn` stored in this [`FuseBox`].
-    pub fn iter_mut<'f>(&'f mut self) -> IterMut<'f, Dyn, Sz> {
+    pub fn iter_mut<'f>(&'f mut self) -> IterMut<'f, Dyn> {
         IterMut::new(self)
     }
 }
 
-#[repr(C)]
-struct Unbox<T, Dyn, Sz>
+impl<Dyn> Index<usize> for FuseBox<Dyn> {
+    type Output = Dyn;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        unsafe { &*self.get_raw(index) }
+    }
+}
+
+impl<Dyn> IndexMut<usize> for FuseBox<Dyn> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        unsafe { &mut *self.get_raw(index) }
+    }
+}
+
+struct Header<Dyn>
 where
     Dyn: ?Sized,
 {
-    size: Sz,
+    offset: usize,
+    size: usize,
     meta: <Dyn as Pointee>::Metadata,
-    inner: T,
 }
 
 fn round_up(n: usize, m: usize) -> usize {

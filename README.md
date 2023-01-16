@@ -8,6 +8,10 @@ I personally use it in [pcmg](https://github.com/JohnDowson/pcmg) audio synthesi
 
 # Changelog
 
+## 0.4.0
+- Removed `Sz` parameter from `FuseBox`
+- `FuseBox` now supports truly random access
+
 ## 0.3.0
 - Added `Size` to restrict `Sz` to valid unsigned integers
 

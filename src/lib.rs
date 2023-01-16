@@ -35,28 +35,6 @@
 
 pub mod fuse;
 pub mod iter;
-mod seal;
-
-/// Marker trait to guarantee that `Sz` belongs to the set of `[u8, u16, u32, usize]`
-pub trait Size
-where
-    Self: seal::Seal,
-    Self: Into<usize>,
-    Self: Copy,
-    Self: TryFrom<usize>,
-    <Self as TryFrom<usize>>::Error: std::fmt::Debug,
-{
-}
-
-impl<T> Size for T
-where
-    Self: seal::Seal,
-    Self: Into<usize>,
-    Self: Copy,
-    Self: TryFrom<usize>,
-    <Self as TryFrom<usize>>::Error: std::fmt::Debug,
-{
-}
 
 /// Safe wrapper for [`FuseBox::push_safer`]
 ///
@@ -103,8 +81,7 @@ macro_rules! impl_as_dyn {
     };
 }
 
-/// Convinience alias for [`fuse::FuseBox<Dyn, usize>`]
-pub type FuseBox<Dyn> = fuse::FuseBox<Dyn, usize>;
+pub use fuse::FuseBox;
 
 pub trait AsDyn<Dyn>
 where
