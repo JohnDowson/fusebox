@@ -16,13 +16,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Install Miri
-      run: |
-        rustup toolchain install nightly --component miri
-        rustup override set nightly
-        cargo miri setup
+    - uses: actions-rs/toolchain@v1
+      with:
+          toolchain: nightly
+          components: clippy, miri
+          override: true
     - name: Build
       run: cargo build --verbose
+    - name: Run clippy
+      run: cargo clippy
     - name: Run tests
       run: cargo test --verbose
     - name: Run miri
