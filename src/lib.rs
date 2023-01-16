@@ -29,7 +29,7 @@
 //! # struct MyStruct {}
 //! impl_as_dyn!(MyStruct => dyn Debug + 'static);
 //! let value = MyStruct {};
-//! let mut fb = FuseBox::<dyn Debug>::default();
+//! let mut fb = FuseBox::default();
 //! fb.push(value);
 //! ```
 
