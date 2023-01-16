@@ -3,6 +3,8 @@ use crate::fuse::FuseBox;
 pub struct Iter<'f, Dyn, Sz>
 where
     Dyn: ?Sized,
+    Sz: Into<usize>,
+    Sz: Copy,
 {
     fused: &'f FuseBox<Dyn, Sz>,
     n: usize,
@@ -11,6 +13,8 @@ where
 impl<'f, Dyn, Sz> Iter<'f, Dyn, Sz>
 where
     Dyn: ?Sized,
+    Sz: Into<usize>,
+    Sz: Copy,
 {
     pub(crate) fn new(fused: &'f FuseBox<Dyn, Sz>) -> Self {
         Self { fused, n: 0 }
@@ -37,6 +41,8 @@ where
 pub struct IterMut<'f, Dyn, Sz>
 where
     Dyn: ?Sized,
+    Sz: Into<usize>,
+    Sz: Copy,
 {
     fused: &'f mut FuseBox<Dyn, Sz>,
     n: usize,
@@ -45,6 +51,8 @@ where
 impl<'f, Dyn, Sz> IterMut<'f, Dyn, Sz>
 where
     Dyn: ?Sized,
+    Sz: Into<usize>,
+    Sz: Copy,
 {
     pub(crate) fn new(fused: &'f mut FuseBox<Dyn, Sz>) -> Self {
         Self { fused, n: 0 }

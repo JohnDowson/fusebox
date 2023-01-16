@@ -1,9 +1,12 @@
-use crate::iter::{Iter, IterMut};
+use crate::{
+    iter::{Iter, IterMut},
+    AsDyn,
+};
 use std::{
     alloc::{alloc, dealloc, Layout},
     fmt::Debug,
     marker::PhantomData,
-    ptr::{self, addr_of_mut, Pointee},
+    ptr::{self, addr_of_mut, drop_in_place, Pointee},
 };
 
 /// Contigous type-erased append-only vector
@@ -16,6 +19,8 @@ use std::{
 pub struct FuseBox<Dyn, Sz>
 where
     Dyn: ?Sized,
+    Sz: Into<usize>,
+    Sz: Copy,
 {
     inner: *mut u8,
     max_align: usize,
@@ -28,6 +33,8 @@ where
 impl<Dyn, Sz> Default for FuseBox<Dyn, Sz>
 where
     Dyn: ?Sized,
+    Sz: Into<usize>,
+    Sz: Copy,
 {
     fn default() -> Self {
         Self::new()
@@ -37,10 +44,15 @@ where
 impl<Dyn, Sz> Drop for FuseBox<Dyn, Sz>
 where
     Dyn: ?Sized,
+    Sz: Into<usize>,
+    Sz: Copy,
 {
     fn drop(&mut self) {
         if !self.inner.is_null() {
             unsafe {
+                for val in self.iter_mut() {
+                    drop_in_place(val);
+                }
                 dealloc(
                     self.inner,
                     Layout::from_size_align_unchecked(self.cap_bytes, self.max_align),
@@ -50,11 +62,19 @@ where
     }
 }
 
-unsafe impl<Dyn, Sz> Send for FuseBox<Dyn, Sz> where Dyn: ?Sized {}
+unsafe impl<Dyn, Sz> Send for FuseBox<Dyn, Sz>
+where
+    Dyn: ?Sized,
+    Sz: Into<usize>,
+    Sz: Copy,
+{
+}
 
 impl<Dyn, Sz> FuseBox<Dyn, Sz>
 where
     Dyn: ?Sized,
+    Sz: Into<usize>,
+    Sz: Copy,
 {
     /// Creates a new [`FuseBox<Dyn, Sz>`].
     pub fn new() -> Self {
@@ -103,17 +123,44 @@ where
         }
     }
 
+    /// Safely appends an element to the vector.
+    ///
+    /// Guarantees that metadata matches the type by requiring that [`AsDyn`] is implemented for T
+    ///
+    /// # Panics
+    ///
+    /// Panics if size of new element is larger than `Sz::MAX`.
+    pub fn push<T>(&mut self, v: T)
+    where
+        T: 'static,
+        T: Send,
+        T: AsDyn<Dyn>,
+        Sz: TryFrom<usize>,
+        <Sz as TryFrom<usize>>::Error: Debug,
+    {
+        unsafe {
+            let meta = ptr::metadata(v.as_dyn());
+            self.push_unsafe(v, meta)
+        }
+    }
+
     /// Appends an element to the vector.
     ///
     /// # Preconditions
     ///
     /// `meta` MUST be derived from the same value that's being appended.
     ///
+    /// # Note
+    ///
+    /// this method does not require that `T` impls [`Send`], making it unsound to send this
+    /// instance of [`FuseBox`] across thread after pushing a `T: !Send`
+    ///
     /// # Panics
     ///
     /// Panics if size of new element is larger than `Sz::MAX`.
-    pub unsafe fn push<T: 'static>(&mut self, v: T, meta: <Dyn as Pointee>::Metadata)
+    pub unsafe fn push_unsafe<T>(&mut self, v: T, meta: <Dyn as Pointee>::Metadata)
     where
+        T: 'static,
         Sz: Copy,
         Sz: TryFrom<usize>,
         <Sz as TryFrom<usize>>::Error: Debug,
@@ -149,11 +196,7 @@ where
         self.len_items += 1;
     }
 
-    fn get_size(&mut self, n: usize) -> &mut Sz
-    where
-        Sz: Into<usize>,
-        Sz: Copy,
-    {
+    fn get_size(&mut self, n: usize) -> &mut Sz {
         assert!(
             n <= self.len_items,
             "Assertion failed ({n}<{})",
@@ -170,11 +213,7 @@ where
         unsafe { &mut (*item.cast::<Unbox<(), Dyn, Sz>>()).size }
     }
 
-    pub(crate) fn get_raw(&self, n: usize) -> *mut Dyn
-    where
-        Sz: Into<usize>,
-        Sz: Copy,
-    {
+    pub(crate) fn get_raw(&self, n: usize) -> *mut Dyn {
         assert!(n <= self.len_items);
         let mut item = self.inner;
         for _ in 0..n {
@@ -196,11 +235,7 @@ where
     /// # Panics
     ///
     /// Panics when `n >= len`
-    pub fn get_mut(&mut self, n: usize) -> &mut Dyn
-    where
-        Sz: Into<usize>,
-        Sz: Copy,
-    {
+    pub fn get_mut(&mut self, n: usize) -> &mut Dyn {
         unsafe { &mut *self.get_raw(n) }
     }
 
@@ -209,11 +244,7 @@ where
     /// # Panics
     ///
     /// Panics when `n >= len`
-    pub fn get(&self, n: usize) -> &Dyn
-    where
-        Sz: Into<usize>,
-        Sz: Copy,
-    {
+    pub fn get(&self, n: usize) -> &Dyn {
         unsafe { &*self.get_raw(n) }
     }
 
