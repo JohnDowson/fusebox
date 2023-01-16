@@ -45,6 +45,9 @@ where
 {
     fn drop(&mut self) {
         if self.cap_bytes != 0 {
+            // Safety:
+            // inner guaranteed to be valid here
+            // values are guaranteed to be aligned
             unsafe {
                 for val in self.iter_mut() {
                     drop_in_place(val);
@@ -99,6 +102,7 @@ where
                 let new = alloc(layout);
                 self.inner = NonNull::new_unchecked(new);
             }
+            return;
         }
         let old = self.inner;
         let old_layout =
@@ -138,7 +142,8 @@ where
         let header = self.make_header(layout, meta);
         let offset = header.offset;
 
-        if layout.size() == 0 {
+        if layout.size() == 0 && layout.align() <= 1 {
+            // Safety: offset guaranteed to be in-bounds
             unsafe { self.inner.as_ptr().add(offset).cast::<T>().write(v) }
             self.headers.push(header);
         } else {

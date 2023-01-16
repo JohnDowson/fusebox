@@ -83,62 +83,64 @@ calc_struct!(D, *; a, b, c);
 calc_struct!(E, *; a, b);
 calc_struct!(F, *; a);
 
-const N: usize = 500;
-
 fn iteration(c: &mut Criterion) {
     let mut g = c.benchmark_group("Linear access");
-    g.bench_with_input("Vec", &N, |b, &n| {
-        let mut v = prepare_vec(n);
+    for n in [8, 32, 64, 128, 256, 512].iter() {
+        g.bench_with_input(format!("Vec_n{n}"), n, |b, &n| {
+            let mut v = prepare_vec(n);
 
-        b.iter(|| {
-            for v in v.iter_mut() {
-                v.calculate()
-            }
-            for v in v.iter() {
-                black_box(v.get_result());
-            }
-        })
-    });
-    g.bench_with_input("FuseBox", &N, |b, &n| {
-        let mut f = prepare_fused(n);
+            b.iter(|| {
+                for v in v.iter_mut() {
+                    v.calculate()
+                }
+                for v in v.iter() {
+                    black_box(v.get_result());
+                }
+            })
+        });
+        g.bench_with_input(format!("FuseBox_n{n}"), n, |b, &n| {
+            let mut f = prepare_fused(n);
 
-        b.iter(|| {
-            for v in f.iter_mut() {
-                v.calculate()
-            }
-            for v in f.iter() {
-                black_box(v.get_result());
-            }
-        })
-    });
+            b.iter(|| {
+                for v in f.iter_mut() {
+                    v.calculate()
+                }
+                for v in f.iter() {
+                    black_box(v.get_result());
+                }
+            })
+        });
+    }
     g.finish();
 }
 
 fn random_access(c: &mut Criterion) {
     let mut g = c.benchmark_group("Random access");
-    g.bench_with_input("Vec", &N, |b, &n| {
-        let mut r = StdRng::seed_from_u64(69);
-        let mut v = prepare_vec(n);
+    for n in [8, 32, 64, 128, 256, 512].iter() {
+        g.bench_with_input(format!("Vec_n{n}"), n, |b, &n| {
+            let mut r = StdRng::seed_from_u64(69);
+            let mut v = prepare_vec(n);
 
-        b.iter(|| {
-            let n = r.gen_range(0..n);
-            let v = &mut v[n];
-            v.calculate();
+            b.iter(|| {
+                let n = r.gen_range(0..n);
+                let v = &mut v[n];
+                v.calculate();
 
-            black_box(v.get_result());
-        })
-    });
-    g.bench_with_input("FuseBox", &N, |b, &n| {
-        let mut r = StdRng::seed_from_u64(69);
-        let mut f = prepare_fused(n);
+                black_box(v.get_result());
+            })
+        });
+        g.bench_with_input(format!("FuseBox_n{n}"), n, |b, &n| {
+            let mut r = StdRng::seed_from_u64(69);
+            let mut f = prepare_fused(n);
 
-        b.iter(|| {
-            let n = r.gen_range(0..n);
-            let v = &mut f[n];
-            v.calculate();
-            v.get_result();
-        })
-    });
+            b.iter(|| {
+                let n = r.gen_range(0..n);
+                let v = &mut f[n];
+                v.calculate();
+                v.get_result();
+            })
+        });
+    }
     g.finish();
 }
 

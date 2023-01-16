@@ -1,4 +1,3 @@
-
 use crate::FuseBox;
 use std::{fmt::Debug, ops::ShlAssign};
 #[test]
