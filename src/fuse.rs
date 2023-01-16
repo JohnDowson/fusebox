@@ -1,10 +1,9 @@
 use crate::{
     iter::{Iter, IterMut},
-    AsDyn,
+    AsDyn, Size,
 };
 use std::{
     alloc::{alloc, dealloc, Layout},
-    fmt::Debug,
     marker::PhantomData,
     ptr::{self, addr_of_mut, drop_in_place, Pointee},
 };
@@ -20,8 +19,8 @@ use std::{
 pub struct FuseBox<Dyn, Sz>
 where
     Dyn: ?Sized,
-    Sz: Into<usize>,
-    Sz: Copy,
+    Sz: Size,
+    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
     inner: *mut u8,
     max_align: usize,
@@ -34,8 +33,8 @@ where
 impl<Dyn, Sz> Default for FuseBox<Dyn, Sz>
 where
     Dyn: ?Sized,
-    Sz: Into<usize>,
-    Sz: Copy,
+    Sz: Size,
+    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
     fn default() -> Self {
         Self::new()
@@ -45,8 +44,8 @@ where
 impl<Dyn, Sz> Drop for FuseBox<Dyn, Sz>
 where
     Dyn: ?Sized,
-    Sz: Into<usize>,
-    Sz: Copy,
+    Sz: Size,
+    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
     fn drop(&mut self) {
         if !self.inner.is_null() {
@@ -66,16 +65,16 @@ where
 unsafe impl<Dyn, Sz> Send for FuseBox<Dyn, Sz>
 where
     Dyn: ?Sized,
-    Sz: Into<usize>,
-    Sz: Copy,
+    Sz: Size,
+    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
 }
 
 impl<Dyn, Sz> FuseBox<Dyn, Sz>
 where
     Dyn: ?Sized,
-    Sz: Into<usize>,
-    Sz: Copy,
+    Sz: Size,
+    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
     /// Creates a new [`FuseBox<Dyn, Sz>`].
     pub fn new() -> Self {
@@ -137,8 +136,6 @@ where
         T: Send,
         T: AsDyn<Dyn>,
         Dyn: 'static,
-        Sz: TryFrom<usize>,
-        <Sz as TryFrom<usize>>::Error: Debug,
     {
         unsafe {
             let meta = ptr::metadata(v.as_dyn());
@@ -157,8 +154,6 @@ where
     where
         T: 'static,
         T: Send,
-        Sz: TryFrom<usize>,
-        <Sz as TryFrom<usize>>::Error: Debug,
     {
         unsafe { self.push_unsafe(v, meta) }
     }
@@ -180,10 +175,6 @@ where
     pub unsafe fn push_unsafe<T>(&mut self, v: T, meta: <Dyn as Pointee>::Metadata)
     where
         T: 'static,
-        Sz: Copy,
-        Sz: TryFrom<usize>,
-        <Sz as TryFrom<usize>>::Error: Debug,
-        Sz: Into<usize>,
     {
         let layout = Layout::new::<Unbox<T, Dyn, Sz>>();
         if self.max_align < layout.align() {

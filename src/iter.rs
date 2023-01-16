@@ -1,10 +1,10 @@
-use crate::fuse::FuseBox;
+use crate::{fuse::FuseBox, Size};
 
 pub struct Iter<'f, Dyn, Sz>
 where
     Dyn: ?Sized,
-    Sz: Into<usize>,
-    Sz: Copy,
+    Sz: Size,
+    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
     fused: &'f FuseBox<Dyn, Sz>,
     n: usize,
@@ -13,8 +13,8 @@ where
 impl<'f, Dyn, Sz> Iter<'f, Dyn, Sz>
 where
     Dyn: ?Sized,
-    Sz: Into<usize>,
-    Sz: Copy,
+    Sz: Size,
+    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
     pub(crate) fn new(fused: &'f FuseBox<Dyn, Sz>) -> Self {
         Self { fused, n: 0 }
@@ -24,8 +24,8 @@ where
 impl<'f, Dyn, Sz> Iterator for Iter<'f, Dyn, Sz>
 where
     Dyn: ?Sized,
-    Sz: Into<usize>,
-    Sz: Copy,
+    Sz: Size,
+    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
     type Item = &'f Dyn;
     fn next(&mut self) -> Option<Self::Item> {
@@ -41,8 +41,8 @@ where
 pub struct IterMut<'f, Dyn, Sz>
 where
     Dyn: ?Sized,
-    Sz: Into<usize>,
-    Sz: Copy,
+    Sz: Size,
+    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
     fused: &'f mut FuseBox<Dyn, Sz>,
     n: usize,
@@ -51,8 +51,8 @@ where
 impl<'f, Dyn, Sz> IterMut<'f, Dyn, Sz>
 where
     Dyn: ?Sized,
-    Sz: Into<usize>,
-    Sz: Copy,
+    Sz: Size,
+    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
     pub(crate) fn new(fused: &'f mut FuseBox<Dyn, Sz>) -> Self {
         Self { fused, n: 0 }
@@ -62,8 +62,8 @@ where
 impl<'f, Dyn, Sz> Iterator for IterMut<'f, Dyn, Sz>
 where
     Dyn: ?Sized,
-    Sz: Into<usize>,
-    Sz: Copy,
+    Sz: Size,
+    <Sz as TryFrom<usize>>::Error: std::fmt::Debug,
 {
     type Item = &'f mut Dyn;
     fn next(&mut self) -> Option<Self::Item> {
