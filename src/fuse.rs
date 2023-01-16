@@ -75,6 +75,11 @@ where
         self.headers.len()
     }
 
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     fn realloc(&mut self, min_size: usize) {
         if self.cap_bytes == 0 {
             unsafe {
@@ -107,11 +112,9 @@ where
 
     /// Appends an element to the vector.
     ///
-    /// # Preconditions
+    /// # Safety
     ///
     /// `meta` MUST be derived from the same value that's being appended.
-    ///
-    /// # Note
     ///
     /// this method does not require that `T` impls [`Send`], making it unsound to send this
     /// instance of [`FuseBox`] across thread after pushing a `T: !Send`
@@ -141,7 +144,7 @@ where
     }
 
     fn make_header(&mut self, layout: Layout, meta: <Dyn as Pointee>::Metadata) -> Header<Dyn> {
-        if self.len() != 0 {
+        if !self.is_empty() {
             let Header {
                 offset,
                 size,
@@ -178,7 +181,9 @@ where
         }
     }
 
-    /// Requires that `T:` [`Send`]
+    /// # Safety
+    ///
+    /// Same as [`push_unsafe`], but requires that `T:` [`Send`]
     pub unsafe fn push_safer<T>(&mut self, v: T, meta: <Dyn as Pointee>::Metadata)
     where
         T: 'static,
@@ -217,12 +222,12 @@ where
     }
 
     /// Returns an iterator over `&Dyn` stored in this [`FuseBox`]
-    pub fn iter<'f>(&'f self) -> Iter<'f, Dyn> {
+    pub fn iter(&'_ self) -> Iter<'_, Dyn> {
         Iter::new(self)
     }
 
     /// Returns an iterator over `&mut Dyn` stored in this [`FuseBox`].
-    pub fn iter_mut<'f>(&'f mut self) -> IterMut<'f, Dyn> {
+    pub fn iter_mut(&'_ mut self) -> IterMut<'_, Dyn> {
         IterMut::new(self)
     }
 }
