@@ -1,10 +1,7 @@
-use crate::{
-    iter::{Iter, IterMut},
-    AsDyn,
-};
+use crate::iter::{Iter, IterMut};
 use std::{
     alloc::{alloc, dealloc, Layout},
-    marker::PhantomData,
+    marker::{PhantomData, Unsize},
     ops::{Index, IndexMut},
     ptr::{self, drop_in_place, NonNull, Pointee},
 };
@@ -166,30 +163,18 @@ where
     }
 
     /// Safely appends an element to the vector.
-    ///
-    /// Guarantees that metadata matches the type by requiring that [`AsDyn`] is implemented for T
     pub fn push<T>(&mut self, v: T)
     where
         T: 'static,
         T: Send,
-        T: AsDyn<Dyn>,
+        T: Unsize<Dyn>,
         Dyn: 'static,
     {
         unsafe {
-            let meta = ptr::metadata(v.as_dyn());
+            let as_dyn: &Dyn = &v;
+            let meta = ptr::metadata(as_dyn);
             self.push_unsafe(v, meta)
         }
-    }
-
-    /// # Safety
-    ///
-    /// Same as [`push_unsafe`], but requires that `T:` [`Send`]
-    pub unsafe fn push_safer<T>(&mut self, v: T, meta: <Dyn as Pointee>::Metadata)
-    where
-        T: 'static,
-        T: Send,
-    {
-        unsafe { self.push_unsafe(v, meta) }
     }
 
     pub(crate) fn get_raw(&self, n: usize) -> *mut Dyn {

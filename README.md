@@ -8,6 +8,9 @@ I personally use it in [pcmg](https://github.com/JohnDowson/pcmg) audio synthesi
 
 # Changelog
 
+## 0.5.0
+- Use `Unsize` instead of `AsDyn` marker trait, making safe push for foreign types possible
+
 ## 0.4.0
 - Removed `Sz` parameter from `FuseBox`
 - `FuseBox` now supports truly random access
