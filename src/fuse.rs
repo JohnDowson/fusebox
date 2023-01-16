@@ -67,16 +67,20 @@ where
         }
     }
 
+    #[must_use]
+    #[inline]
     /// Returns the length of this [`FuseBox<Dyn>`] in items.
     pub fn len(&self) -> usize {
         self.headers.len()
     }
 
     #[must_use]
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    #[inline]
     fn realloc(&mut self, min_size: usize) {
         if self.cap_bytes == 0 {
             unsafe {
@@ -107,6 +111,7 @@ where
         }
     }
 
+    #[inline]
     /// Appends an element to the vector.
     ///
     /// # Safety
@@ -140,6 +145,7 @@ where
         self.len_bytes = offset + size;
     }
 
+    #[inline]
     fn make_header(&mut self, layout: Layout, meta: <Dyn as Pointee>::Metadata) -> Header<Dyn> {
         if !self.is_empty() {
             let Header {
@@ -162,6 +168,7 @@ where
         }
     }
 
+    #[inline]
     /// Safely appends an element to the vector.
     pub fn push<T>(&mut self, v: T)
     where
@@ -173,8 +180,8 @@ where
         unsafe { self.push_unsafe(v) }
     }
 
-    pub(crate) fn get_raw(&self, n: usize) -> *mut Dyn {
-        assert!(n <= self.len());
+    #[inline]
+    pub(crate) unsafe fn get_raw(&self, n: usize) -> *mut Dyn {
         let Header {
             offset,
             size: _,
@@ -186,6 +193,7 @@ where
         }
     }
 
+    #[inline]
     /// Retrieves `&mut Dyn` from [`FuseBox`].
     pub fn get_mut(&mut self, n: usize) -> Option<&mut Dyn> {
         if self.len() <= n {
@@ -194,6 +202,7 @@ where
         unsafe { Some(&mut *self.get_raw(n)) }
     }
 
+    #[inline]
     /// Retrieves `&Dyn` from [`FuseBox`].
     pub fn get(&self, n: usize) -> Option<&Dyn> {
         if self.len() <= n {
@@ -216,13 +225,17 @@ where
 impl<Dyn> Index<usize> for FuseBox<Dyn> {
     type Output = Dyn;
 
+    #[inline]
     fn index(&self, index: usize) -> &Self::Output {
+        assert!(index < self.len());
         unsafe { &*self.get_raw(index) }
     }
 }
 
 impl<Dyn> IndexMut<usize> for FuseBox<Dyn> {
+    #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        assert!(index < self.len());
         unsafe { &mut *self.get_raw(index) }
     }
 }
