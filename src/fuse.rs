@@ -110,15 +110,15 @@ where
     /// Appends an element to the vector.
     ///
     /// # Safety
-    ///
-    /// `meta` MUST be derived from the same value that's being appended.
-    ///
     /// this method does not require that `T` impls [`Send`], making it unsound to send this
     /// instance of [`FuseBox`] across thread after pushing a `T: !Send`
-    pub unsafe fn push_unsafe<T>(&mut self, v: T, meta: <Dyn as Pointee>::Metadata)
+    pub unsafe fn push_unsafe<T>(&mut self, v: T)
     where
         T: 'static,
+        T: Unsize<Dyn>,
     {
+        let as_dyn: &Dyn = &v;
+        let meta = ptr::metadata(as_dyn);
         let layout = Layout::new::<T>();
         let header = self.make_header(layout, meta);
         let offset = header.offset;
@@ -170,11 +170,7 @@ where
         T: Unsize<Dyn>,
         Dyn: 'static,
     {
-        unsafe {
-            let as_dyn: &Dyn = &v;
-            let meta = ptr::metadata(as_dyn);
-            self.push_unsafe(v, meta)
-        }
+        unsafe { self.push_unsafe(v) }
     }
 
     pub(crate) fn get_raw(&self, n: usize) -> *mut Dyn {
