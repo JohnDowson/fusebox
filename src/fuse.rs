@@ -14,8 +14,9 @@ use std::{
 ///
 /// `Dyn` shall be `dyn Trait`
 ///
+/// `Sz` shall be an unsigned integer no larger than [`usize`] and is used to store the size of element.
 ///
-/// `Sz` shall be an unsigned integer no larger than [`usize`]
+/// You might wish to use a size smaller than [`usize`] to reduce memory overhead, if you know that your types will be small enough.
 pub struct FuseBox<Dyn, Sz>
 where
     Dyn: ?Sized,
