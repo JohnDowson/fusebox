@@ -8,6 +8,9 @@ I personally use it in [pcmg](https://github.com/JohnDowson/pcmg) audio synthesi
 
 # Changelog
 
+## 0.3.0
+- Added `Size` to restrict `Sz` to valid unsigned integers
+
 ## 0.2.0
 - Added `AsDyn` to make safe `push` possible.
 - Fixed pushed values not being dropped when `FuseBox` is dropped
