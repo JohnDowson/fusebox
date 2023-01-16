@@ -135,6 +135,7 @@ where
         T: 'static,
         T: Send,
         T: AsDyn<Dyn>,
+        Dyn: 'static,
         Sz: TryFrom<usize>,
         <Sz as TryFrom<usize>>::Error: Debug,
     {
@@ -142,6 +143,23 @@ where
             let meta = ptr::metadata(v.as_dyn());
             self.push_unsafe(v, meta)
         }
+    }
+
+    /// Requires that `T:` [`Send`] making
+    ///
+    /// Guarantees that metadata matches the type by requiring that [`AsDyn`] is implemented for T
+    ///
+    /// # Panics
+    ///
+    /// Panics if size of new element is larger than `Sz::MAX`.
+    pub unsafe fn push_safer<T>(&mut self, v: T, meta: <Dyn as Pointee>::Metadata)
+    where
+        T: 'static,
+        T: Send,
+        Sz: TryFrom<usize>,
+        <Sz as TryFrom<usize>>::Error: Debug,
+    {
+        unsafe { self.push_unsafe(v, meta) }
     }
 
     /// Appends an element to the vector.
