@@ -1,8 +1,11 @@
 #![feature(ptr_metadata)]
 #![feature(unsize)]
+#![feature(core_intrinsics)]
 #![warn(clippy::dbg_macro)]
 
-//! # Mostly safe and sound append-only collection of trait objects
+//! # fusebox
+//!
+//! Mostly safe and sound append-only collection of trait objects
 //!
 //! # Why?
 //!
@@ -21,9 +24,5 @@
 //! ```
 
 pub mod fuse;
-pub mod iter;
 
 pub use fuse::FuseBox;
-
-#[cfg(test)]
-mod test;

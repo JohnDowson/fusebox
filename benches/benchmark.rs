@@ -1,11 +1,16 @@
 #[cfg(feature = "bench")]
+use bumpalo::Bump;
+#[cfg(feature = "bench")]
 use criterion::{black_box, criterion_group, criterion_main, Criterion, PlottingBackend};
 #[cfg(feature = "bench")]
-use fusebox::FuseBox;
+use fusebox::{inline_meta, FuseBox};
 #[cfg(feature = "bench")]
 use pprof::criterion::{Output, PProfProfiler};
 #[cfg(feature = "bench")]
 use rand::prelude::*;
+
+#[cfg(feature = "bench")]
+const SEED: u64 = 420;
 
 #[cfg(feature = "bench")]
 macro_rules! calc_struct {
@@ -27,6 +32,10 @@ macro_rules! calc_struct {
                 let this = Self::new(r);
                 Box::new(this)
             }
+            fn bump<'b>(r: &mut StdRng, b: &'b Bump) -> &'b mut dyn Calculation {
+                let this = Self::new(r);
+                b.alloc(this)
+            }
         }
 
         impl Calculation for $n {
@@ -47,8 +56,27 @@ trait Calculation {
 }
 
 #[cfg(feature = "bench")]
+fn prepare_vec_bumpalo<'b>(n: usize, b: &'b Bump) -> Vec<&'b mut dyn Calculation> {
+    let mut r = StdRng::seed_from_u64(SEED);
+    (0..n)
+        .map(|_| {
+            let u = r.gen_range(0..=5);
+            match u {
+                0 => A::bump(&mut r, b),
+                1 => B::bump(&mut r, b),
+                2 => C::bump(&mut r, b),
+                3 => D::bump(&mut r, b),
+                4 => E::bump(&mut r, b),
+                5 => F::bump(&mut r, b),
+                _ => unreachable!(),
+            }
+        })
+        .collect()
+}
+
+#[cfg(feature = "bench")]
 fn prepare_vec(n: usize) -> Vec<Box<dyn Calculation>> {
-    let mut r = StdRng::seed_from_u64(69);
+    let mut r = StdRng::seed_from_u64(SEED);
     (0..n)
         .map(|_| {
             let u = r.gen_range(0..=5);
@@ -68,7 +96,26 @@ fn prepare_vec(n: usize) -> Vec<Box<dyn Calculation>> {
 #[cfg(feature = "bench")]
 fn prepare_fused(n: usize) -> FuseBox<dyn Calculation> {
     let mut fused = FuseBox::default();
-    let mut r = StdRng::seed_from_u64(69);
+    let mut r = StdRng::seed_from_u64(SEED);
+    for _ in 0..n {
+        let u = r.gen_range(0..=5);
+        match u {
+            0 => fused.push(A::new(&mut r)),
+            1 => fused.push(B::new(&mut r)),
+            2 => fused.push(C::new(&mut r)),
+            3 => fused.push(D::new(&mut r)),
+            4 => fused.push(E::new(&mut r)),
+            5 => fused.push(F::new(&mut r)),
+            _ => unreachable!(),
+        }
+    }
+    fused
+}
+
+#[cfg(feature = "bench")]
+fn prepare_inline_meta_fused(n: usize) -> inline_meta::FuseBox<dyn Calculation> {
+    let mut fused = inline_meta::FuseBox::default();
+    let mut r = StdRng::seed_from_u64(SEED);
     for _ in 0..n {
         let u = r.gen_range(0..=5);
         match u {
@@ -100,9 +147,9 @@ calc_struct!(F, *; a);
 #[cfg(feature = "bench")]
 fn iteration(c: &mut Criterion) {
     let mut g = c.benchmark_group("Linear access");
-    for n in [8, 32, 64, 128, 256, 512].iter() {
-        g.bench_with_input(format!("Vec_n{n}"), n, |b, &n| {
-            let mut v = prepare_vec(n);
+    for n in (0..=512).step_by(64).skip(1) {
+        g.bench_with_input(format!("Vec_n{n}"), &n, |b, &n| {
+            let mut v = black_box(prepare_vec(n));
 
             b.iter(|| {
                 for v in v.iter_mut() {
@@ -113,7 +160,20 @@ fn iteration(c: &mut Criterion) {
                 }
             })
         });
-        g.bench_with_input(format!("FuseBox_n{n}"), n, |b, &n| {
+        g.bench_with_input(format!("Vec_bumpalo_n{n}"), &n, |b, &n| {
+            let bump = Bump::new();
+            let mut v = black_box(prepare_vec_bumpalo(n, &bump));
+
+            b.iter(|| {
+                for v in v.iter_mut() {
+                    v.calculate()
+                }
+                for v in v.iter() {
+                    black_box(v.get_result());
+                }
+            })
+        });
+        g.bench_with_input(format!("FuseBox_n{n}"), &n, |b, &n| {
             let mut f = prepare_fused(n);
 
             b.iter(|| {
@@ -132,10 +192,10 @@ fn iteration(c: &mut Criterion) {
 #[cfg(feature = "bench")]
 fn random_access(c: &mut Criterion) {
     let mut g = c.benchmark_group("Random access");
-    for n in [8, 32, 64, 128, 256, 512].iter() {
-        g.bench_with_input(format!("Vec_n{n}"), n, |b, &n| {
-            let mut r = StdRng::seed_from_u64(69);
-            let mut v = prepare_vec(n);
+    for n in (0..=512).step_by(64).skip(1) {
+        g.bench_with_input(format!("Vec_n{n}"), &n, |b, &n| {
+            let mut r = StdRng::from_rng(thread_rng()).unwrap();
+            let mut v = black_box(prepare_vec(n));
 
             b.iter(|| {
                 let n = r.gen_range(0..n);
@@ -145,9 +205,22 @@ fn random_access(c: &mut Criterion) {
                 black_box(v.get_result());
             })
         });
-        g.bench_with_input(format!("FuseBox_n{n}"), n, |b, &n| {
-            let mut r = StdRng::seed_from_u64(69);
-            let mut f = prepare_fused(n);
+        g.bench_with_input(format!("Vec_bumpalo_n{n}"), &n, |b, &n| {
+            let mut r = StdRng::from_rng(thread_rng()).unwrap();
+            let bump = Bump::new();
+            let mut v = black_box(prepare_vec_bumpalo(n, &bump));
+
+            b.iter(|| {
+                let n = r.gen_range(0..n);
+                let v = &mut v[n];
+                v.calculate();
+
+                black_box(v.get_result());
+            })
+        });
+        g.bench_with_input(format!("FuseBox_n{n}"), &n, |b, &n| {
+            let mut r = StdRng::from_rng(thread_rng()).unwrap();
+            let mut f = black_box(prepare_fused(n));
 
             b.iter(|| {
                 let n = r.gen_range(0..n);
@@ -163,7 +236,7 @@ fn random_access(c: &mut Criterion) {
 #[cfg(feature = "bench")]
 fn config(pprof: bool) -> Criterion {
     let c = Criterion::default()
-        .sample_size(200)
+        .sample_size(100)
         .plotting_backend(PlottingBackend::Gnuplot)
         .with_plots();
     if pprof {

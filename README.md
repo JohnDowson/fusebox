@@ -7,6 +7,9 @@ I personally use it in [pcmg](https://github.com/JohnDowson/pcmg) audio synthesi
 
 # Changelog
 
+## 0.7.0
+- Improved iteration performance by using two pointer technique
+
 ## 0.6.0
 - Performance improvements
 - Soundness fixes

@@ -1,4 +1,4 @@
-use crate::iter::{Iter, IterMut};
+use iter::{Iter, IterMut};
 use std::{
     alloc::{alloc, dealloc, Layout},
     marker::{PhantomData, Unsize},
@@ -6,6 +6,12 @@ use std::{
     ptr::{self, drop_in_place, NonNull, Pointee},
 };
 
+pub mod iter;
+
+#[cfg(test)]
+mod test;
+
+#[derive(Clone, Copy)]
 struct Header<Dyn>
 where
     Dyn: ?Sized,
