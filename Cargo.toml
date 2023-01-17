@@ -9,3 +9,12 @@ license-file = "LICENSE"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+[dev-dependencies]
+criterion = { version = "0.4.0", features = ["html_reports"] }
+rand = "0.8.5"
+pprof = { version = "0.11.0", features = ["flamegraph", "criterion"] }
+
+[[bench]]
+name = "benchmark"
+harness = false
