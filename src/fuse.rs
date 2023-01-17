@@ -116,8 +116,8 @@ where
                 .expect("New capacity overflowed usize")
         };
         unsafe {
-            let layout = Layout::from_size_align_unchecked(size, self.max_align);
-            self.cap_bytes = layout.pad_to_align().size();
+            let layout = Layout::from_size_align_unchecked(size, self.max_align).pad_to_align();
+            self.cap_bytes = layout.size();
             let new = alloc(layout);
             std::ptr::copy(old.as_ptr(), new, self.len_bytes);
             self.inner = NonNull::new_unchecked(new);
@@ -139,8 +139,11 @@ where
         let as_dyn: &Dyn = &v;
         let meta = ptr::metadata(as_dyn);
         let layout = Layout::new::<T>();
+        dbg!(std::any::type_name::<T>());
+        // dbg!(layout);
         let header = self.make_header(layout, meta);
         let offset = header.offset;
+        dbg!(offset);
 
         if layout.size() == 0 && layout.align() <= 1 {
             // Safety: offset guaranteed to be in-bounds
@@ -150,7 +153,7 @@ where
             if self.max_align < layout.align() {
                 self.max_align = layout.align()
             }
-            if self.cap_bytes - self.len_bytes < layout.size() {
+            if self.cap_bytes - offset < layout.size() {
                 self.realloc(layout.size())
             }
 
@@ -159,6 +162,7 @@ where
         }
         self.last_size = layout.size();
         self.len_bytes = offset + layout.size();
+        dbg!(self.cap_bytes);
     }
 
     #[inline]
