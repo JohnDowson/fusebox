@@ -1,4 +1,4 @@
-use crate::FuseBox;
+use super::FuseBox;
 use std::{fmt::Debug, ops::ShlAssign};
 #[test]
 fn test() {

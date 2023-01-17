@@ -1,7 +1,7 @@
 #[cfg(feature = "bench")]
 use criterion::{black_box, criterion_group, criterion_main, Criterion, PlottingBackend};
 #[cfg(feature = "bench")]
-use fusebox::FuseBox;
+use fusebox::{inline_meta, FuseBox};
 #[cfg(feature = "bench")]
 use pprof::criterion::{Output, PProfProfiler};
 #[cfg(feature = "bench")]
@@ -85,6 +85,25 @@ fn prepare_fused(n: usize) -> FuseBox<dyn Calculation> {
 }
 
 #[cfg(feature = "bench")]
+fn prepare_inline_meta_fused(n: usize) -> inline_meta::FuseBox<dyn Calculation> {
+    let mut fused = inline_meta::FuseBox::default();
+    let mut r = StdRng::seed_from_u64(69);
+    for _ in 0..n {
+        let u = r.gen_range(0..=5);
+        match u {
+            0 => fused.push(A::new(&mut r)),
+            1 => fused.push(B::new(&mut r)),
+            2 => fused.push(C::new(&mut r)),
+            3 => fused.push(D::new(&mut r)),
+            4 => fused.push(E::new(&mut r)),
+            5 => fused.push(F::new(&mut r)),
+            _ => unreachable!(),
+        }
+    }
+    fused
+}
+
+#[cfg(feature = "bench")]
 calc_struct!(A, *; a, b, c, d, e, f);
 #[cfg(feature = "bench")]
 calc_struct!(B, *; a, b, c, d, e);
@@ -125,6 +144,18 @@ fn iteration(c: &mut Criterion) {
                 }
             })
         });
+        g.bench_with_input(format!("inline_meta_FuseBox_n{n}"), n, |b, &n| {
+            let mut f = prepare_inline_meta_fused(n);
+
+            b.iter(|| {
+                for v in f.iter_mut() {
+                    v.calculate()
+                }
+                for v in f.iter() {
+                    black_box(v.get_result());
+                }
+            })
+        });
     }
     g.finish();
 }
@@ -148,6 +179,17 @@ fn random_access(c: &mut Criterion) {
         g.bench_with_input(format!("FuseBox_n{n}"), n, |b, &n| {
             let mut r = StdRng::seed_from_u64(69);
             let mut f = prepare_fused(n);
+
+            b.iter(|| {
+                let n = r.gen_range(0..n);
+                let v = &mut f[n];
+                v.calculate();
+                v.get_result();
+            })
+        });
+        g.bench_with_input(format!("inline_meta_FuseBox_n{n}"), n, |b, &n| {
+            let mut r = StdRng::seed_from_u64(69);
+            let mut f = prepare_inline_meta_fused(n);
 
             b.iter(|| {
                 let n = r.gen_range(0..n);

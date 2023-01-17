@@ -3,8 +3,11 @@ use std::{
     alloc::{alloc, dealloc, Layout},
     marker::{PhantomData, Unsize},
     ops::{Index, IndexMut},
-    ptr::{self, drop_in_place, NonNull, Pointee},
+    ptr::{self, addr_of_mut, drop_in_place, NonNull, Pointee},
 };
+
+#[cfg(test)]
+mod test;
 
 pub mod iter {
     use super::FuseBox;
@@ -12,15 +15,13 @@ pub mod iter {
     impl_iter!(IterMut, mut);
 }
 
-#[cfg(test)]
-mod test;
-
-struct Header<Dyn>
+#[repr(C)]
+struct Data<T, Dyn>
 where
     Dyn: ?Sized,
 {
-    offset: usize,
     meta: <Dyn as Pointee>::Metadata,
+    data: T,
 }
 
 /// Contigous type-erased append-only vector
@@ -30,7 +31,7 @@ pub struct FuseBox<Dyn>
 where
     Dyn: ?Sized,
 {
-    headers: Vec<Header<Dyn>>,
+    offsets: Vec<usize>,
     inner: NonNull<u8>,
     last_size: usize,
     max_align: usize,
@@ -79,7 +80,7 @@ where
     /// Creates a new [`FuseBox<Dyn>`].
     pub fn new() -> Self {
         Self {
-            headers: Default::default(),
+            offsets: Default::default(),
             inner: std::ptr::NonNull::dangling(),
             last_size: 0,
             max_align: 0,
@@ -93,7 +94,7 @@ where
     #[inline]
     /// Returns the length of this [`FuseBox<Dyn>`] in items.
     pub fn len(&self) -> usize {
-        self.headers.len()
+        self.offsets.len()
     }
 
     #[must_use]
@@ -147,14 +148,20 @@ where
     {
         let as_dyn: &Dyn = &v;
         let meta = ptr::metadata(as_dyn);
-        let layout = Layout::new::<T>();
-        let header = self.make_header(layout, meta);
-        let offset = header.offset;
+        let v = Data { meta, data: v };
+        let layout = Layout::new::<Data<T, Dyn>>();
+        let offset = self.calc_offset(layout);
 
         if layout.size() == 0 && layout.align() <= 1 {
             // Safety: offset guaranteed to be in-bounds
-            unsafe { self.inner.as_ptr().add(offset).cast::<T>().write(v) }
-            self.headers.push(header);
+            unsafe {
+                self.inner
+                    .as_ptr()
+                    .add(offset)
+                    .cast::<Data<T, Dyn>>()
+                    .write(v);
+                self.offsets.push(offset);
+            }
         } else {
             if self.max_align < layout.align() {
                 self.max_align = layout.align()
@@ -163,21 +170,27 @@ where
                 self.realloc(layout.size())
             }
 
-            unsafe { self.inner.as_ptr().add(offset).cast::<T>().write(v) }
-            self.headers.push(header);
+            // Safety: offset guaranteed to be in-bounds
+            unsafe {
+                self.inner
+                    .as_ptr()
+                    .add(offset)
+                    .cast::<Data<T, Dyn>>()
+                    .write(v);
+                self.offsets.push(offset);
+            }
         }
         self.last_size = layout.size();
         self.len_bytes = offset + layout.size();
     }
 
     #[inline]
-    fn make_header(&mut self, layout: Layout, meta: <Dyn as Pointee>::Metadata) -> Header<Dyn> {
+    fn calc_offset(&mut self, layout: Layout) -> usize {
         if !self.is_empty() {
-            let Header { offset, meta: _ } = self.headers[self.len() - 1];
-            let offset = round_up(offset + self.last_size, layout.align());
-            Header { offset, meta }
+            let last = self.offsets[self.len() - 1];
+            round_up(last + self.last_size, layout.align())
         } else {
-            Header { offset: 0, meta }
+            0
         }
     }
 
@@ -195,9 +208,10 @@ where
 
     #[inline]
     pub(crate) unsafe fn get_raw(&self, n: usize) -> *mut Dyn {
-        let Header { offset, meta } = self.headers[n];
+        let data = self.inner.as_ptr().add(self.offsets[n]).cast::<Data<(), Dyn>>();
         unsafe {
-            let ptr = self.inner.as_ptr().add(offset).cast();
+            let ptr = addr_of_mut!((*data).data);
+            let meta = (*data).meta;
             ptr::from_raw_parts_mut::<Dyn>(ptr, meta)
         }
     }
