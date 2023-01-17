@@ -9,7 +9,7 @@ license-file = "LICENSE"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-bench = ["dep:criterion", "dep:rand", "dep:pprof"]
+bench = ["dep:criterion", "dep:rand", "dep:pprof", "dep:bumpalo"]
 
 [dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"], optional = true }
@@ -18,6 +18,13 @@ pprof = { version = "0.11.0", features = [
     "flamegraph",
     "criterion",
 ], optional = true }
+bumpalo = { version = "3.11.1", features = ["boxed"], optional = true }
+
+# [dependencies]
+# criterion = { version = "0.4.0", features = ["html_reports"] }
+# rand = { version = "0.8.5" }
+# pprof = { version = "0.11.0", features = ["flamegraph", "criterion"] }
+# bumpalo = { version = "3.11.1", features = ["boxed"] }
 
 [[bench]]
 name = "benchmark"
