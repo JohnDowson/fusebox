@@ -1,5 +1,6 @@
 #![feature(ptr_metadata)]
 #![feature(unsize)]
+#![warn(clippy::dbg_macro)]
 
 //! # Mostly safe and sound append-only collection of trait objects
 //!

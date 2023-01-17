@@ -139,11 +139,8 @@ where
         let as_dyn: &Dyn = &v;
         let meta = ptr::metadata(as_dyn);
         let layout = Layout::new::<T>();
-        dbg!(std::any::type_name::<T>());
-        // dbg!(layout);
         let header = self.make_header(layout, meta);
         let offset = header.offset;
-        dbg!(offset);
 
         if layout.size() == 0 && layout.align() <= 1 {
             // Safety: offset guaranteed to be in-bounds
@@ -162,7 +159,6 @@ where
         }
         self.last_size = layout.size();
         self.len_bytes = offset + layout.size();
-        dbg!(self.cap_bytes);
     }
 
     #[inline]

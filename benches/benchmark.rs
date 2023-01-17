@@ -1,8 +1,13 @@
+#[cfg(feature = "bench")]
 use criterion::{black_box, criterion_group, criterion_main, Criterion, PlottingBackend};
+#[cfg(feature = "bench")]
 use fusebox::FuseBox;
+#[cfg(feature = "bench")]
 use pprof::criterion::{Output, PProfProfiler};
+#[cfg(feature = "bench")]
 use rand::prelude::*;
 
+#[cfg(feature = "bench")]
 macro_rules! calc_struct {
     ($n:ident, $op:tt; $($f:ident),*) => {
         #[derive(Clone, Copy)]
@@ -35,11 +40,13 @@ macro_rules! calc_struct {
     };
 }
 
+#[cfg(feature = "bench")]
 trait Calculation {
     fn calculate(&mut self);
     fn get_result(&self) -> f32;
 }
 
+#[cfg(feature = "bench")]
 fn prepare_vec(n: usize) -> Vec<Box<dyn Calculation>> {
     let mut r = StdRng::seed_from_u64(69);
     (0..n)
@@ -58,6 +65,7 @@ fn prepare_vec(n: usize) -> Vec<Box<dyn Calculation>> {
         .collect()
 }
 
+#[cfg(feature = "bench")]
 fn prepare_fused(n: usize) -> FuseBox<dyn Calculation> {
     let mut fused = FuseBox::default();
     let mut r = StdRng::seed_from_u64(69);
@@ -76,13 +84,20 @@ fn prepare_fused(n: usize) -> FuseBox<dyn Calculation> {
     fused
 }
 
+#[cfg(feature = "bench")]
 calc_struct!(A, *; a, b, c, d, e, f);
+#[cfg(feature = "bench")]
 calc_struct!(B, *; a, b, c, d, e);
+#[cfg(feature = "bench")]
 calc_struct!(C, *; a, b, c, d);
+#[cfg(feature = "bench")]
 calc_struct!(D, *; a, b, c);
+#[cfg(feature = "bench")]
 calc_struct!(E, *; a, b);
+#[cfg(feature = "bench")]
 calc_struct!(F, *; a);
 
+#[cfg(feature = "bench")]
 fn iteration(c: &mut Criterion) {
     let mut g = c.benchmark_group("Linear access");
     for n in [8, 32, 64, 128, 256, 512].iter() {
@@ -114,6 +129,7 @@ fn iteration(c: &mut Criterion) {
     g.finish();
 }
 
+#[cfg(feature = "bench")]
 fn random_access(c: &mut Criterion) {
     let mut g = c.benchmark_group("Random access");
     for n in [8, 32, 64, 128, 256, 512].iter() {
@@ -144,6 +160,7 @@ fn random_access(c: &mut Criterion) {
     g.finish();
 }
 
+#[cfg(feature = "bench")]
 fn config(pprof: bool) -> Criterion {
     let c = Criterion::default()
         .sample_size(200)
@@ -156,7 +173,12 @@ fn config(pprof: bool) -> Criterion {
     }
 }
 
+#[cfg(feature = "bench")]
 criterion_group!(name = benches;
     config = config(false);
     targets = iteration, random_access);
+#[cfg(feature = "bench")]
 criterion_main!(benches);
+
+#[cfg(not(feature = "bench"))]
+fn main() {}

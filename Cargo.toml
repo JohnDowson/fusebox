@@ -1,6 +1,6 @@
 [package]
 name = "fusebox"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 description = "Mostly safe and sound append-only collection of trait objects."
 repository = "https://github.com/JohnDowson/fusebox"
@@ -8,12 +8,16 @@ license-file = "LICENSE"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
+[features]
+bench = ["dep:criterion", "dep:rand", "dep:pprof"]
 
-[dev-dependencies]
-criterion = { version = "0.4.0", features = ["html_reports"] }
-rand = "0.8.5"
-pprof = { version = "0.11.0", features = ["flamegraph", "criterion"] }
+[dependencies]
+criterion = { version = "0.4.0", features = ["html_reports"], optional = true }
+rand = { version = "0.8.5", optional = true }
+pprof = { version = "0.11.0", features = [
+    "flamegraph",
+    "criterion",
+], optional = true }
 
 [[bench]]
 name = "benchmark"
