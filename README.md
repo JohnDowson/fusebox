@@ -8,6 +8,10 @@ I personally use it in [pcmg](https://github.com/JohnDowson/pcmg) audio synthesi
 
 # Changelog
 
+## 0.6.0
+- Performance improvements
+- Soundness fixes
+
 ## 0.5.0
 - Use `Unsize` instead of `AsDyn` marker trait, making safe push for foreign types possible
 
