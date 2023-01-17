@@ -6,15 +6,12 @@ use std::{
     ptr::{self, drop_in_place, NonNull, Pointee},
 };
 
-pub mod iter {
-    use super::FuseBox;
-    impl_iter!(Iter);
-    impl_iter!(IterMut, mut);
-}
+pub mod iter;
 
 #[cfg(test)]
 mod test;
 
+#[derive(Clone, Copy)]
 struct Header<Dyn>
 where
     Dyn: ?Sized,
