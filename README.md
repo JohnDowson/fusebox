@@ -1,5 +1,4 @@
-# fusebox ![crates.io](https://img.shields.io/crates/v/fusebox.svg) ![https://github.com/JohnDowson/fusebox/actions](https://img.shields.io/github/actions/workflow/status/JohnDowson/fusebox/rust.yml)
-
+# fusebox [![crates.io](https://img.shields.io/crates/v/fusebox.svg)](https://crates.io/crates/fusebox) [![CI status](https://img.shields.io/github/actions/workflow/status/JohnDowson/fusebox/rust.yml)](https://github.com/JohnDowson/fusebox/actions)
 Mostly safe and sound append-only collection of trait objects.
 
 ## Why?
