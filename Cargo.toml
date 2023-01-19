@@ -1,6 +1,6 @@
 [package]
 name = "fusebox"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2021"
 description = "Mostly safe and sound append-only collection of trait objects."
 repository = "https://github.com/JohnDowson/fusebox"

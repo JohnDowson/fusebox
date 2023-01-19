@@ -69,14 +69,14 @@ where
 unsafe impl<Dyn> Send for FuseBox<Dyn>
 where
     Dyn: ?Sized,
-    Dyn: Sync,
+    Dyn: Send,
 {
 }
 
 unsafe impl<Dyn> Sync for FuseBox<Dyn>
 where
     Dyn: ?Sized,
-    for<'d> &'d Dyn: Send,
+    Dyn: Sync,
 {
 }
 
