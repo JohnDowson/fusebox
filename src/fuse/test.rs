@@ -22,6 +22,24 @@ fn test() {
 }
 
 #[test]
+fn silly() {
+    let mut fb = FuseBox::<[u8]>::default();
+
+    let v = [0; 2];
+    fb.push(v);
+    let v = [0; 4];
+    fb.push(v);
+    let v = [0; 8];
+    fb.push(v);
+    let v = [0; 16];
+    fb.push(v);
+
+    for v in fb.iter() {
+        println!("{v:?}")
+    }
+}
+
+#[test]
 fn mutate() {
     trait ShlDebug: ShlAssign<u8> + Debug {}
     impl<T> ShlDebug for T where T: ShlAssign<u8> + Debug {}

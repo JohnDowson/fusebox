@@ -1,7 +1,9 @@
 #![feature(ptr_metadata)]
 #![feature(unsize)]
 #![feature(core_intrinsics)]
+#![feature(allocator_api)]
 #![warn(clippy::dbg_macro)]
+#![warn(clippy::all)]
 
 //! # fusebox
 //!

@@ -1,7 +1,7 @@
 use iter::{Iter, IterMut};
 use std::{
     alloc::{alloc, dealloc, Layout},
-    marker::{PhantomData, Unsize},
+    marker::Unsize,
     ops::{Index, IndexMut},
     ptr::{self, drop_in_place, NonNull, Pointee},
 };
@@ -33,7 +33,6 @@ where
     max_align: usize,
     len_bytes: usize,
     cap_bytes: usize,
-    _tag: PhantomData<Dyn>,
 }
 
 impl<Dyn> Default for FuseBox<Dyn>
@@ -67,22 +66,34 @@ where
     }
 }
 
-unsafe impl<Dyn> Send for FuseBox<Dyn> where Dyn: ?Sized {}
+unsafe impl<Dyn> Send for FuseBox<Dyn>
+where
+    Dyn: ?Sized,
+    Dyn: Sync,
+{
+}
+
+unsafe impl<Dyn> Sync for FuseBox<Dyn>
+where
+    Dyn: ?Sized,
+    for<'d> &'d Dyn: Send,
+{
+}
 
 impl<Dyn> FuseBox<Dyn>
 where
     Dyn: ?Sized,
 {
+    #[must_use]
     /// Creates a new [`FuseBox<Dyn>`].
     pub fn new() -> Self {
         Self {
-            headers: Default::default(),
+            headers: Vec::new(),
             inner: std::ptr::NonNull::dangling(),
             last_size: 0,
             max_align: 0,
             len_bytes: 0,
             cap_bytes: 0,
-            _tag: Default::default(),
         }
     }
 
@@ -132,12 +143,7 @@ where
     }
 
     #[inline]
-    /// Appends an element to the vector.
-    ///
-    /// # Safety
-    /// this method does not require that `T` impls [`Send`], making it unsound to send this
-    /// instance of [`FuseBox`] across thread after pushing a `T: !Send`
-    pub unsafe fn push_unsafe<T>(&mut self, v: T)
+    unsafe fn push_unsafe<T>(&mut self, v: T)
     where
         T: 'static,
         T: Unsize<Dyn>,
@@ -154,10 +160,10 @@ where
             self.headers.push(header);
         } else {
             if self.max_align < layout.align() {
-                self.max_align = layout.align()
+                self.max_align = layout.align();
             }
             if self.cap_bytes - offset < layout.size() {
-                self.realloc(layout.size())
+                self.realloc(layout.size());
             }
 
             unsafe { self.inner.as_ptr().add(offset).cast::<T>().write(v) }
@@ -169,21 +175,20 @@ where
 
     #[inline]
     fn make_header(&mut self, layout: Layout, meta: <Dyn as Pointee>::Metadata) -> Header<Dyn> {
-        if !self.is_empty() {
+        if self.is_empty() {
+            Header { offset: 0, meta }
+        } else {
             let Header { offset, meta: _ } = self.headers[self.len() - 1];
             let offset = round_up(offset + self.last_size, layout.align());
             Header { offset, meta }
-        } else {
-            Header { offset: 0, meta }
         }
     }
 
     #[inline]
-    /// Safely appends an element to the vector.
+    /// Appends an element to the vector.
     pub fn push<T>(&mut self, v: T)
     where
         T: 'static,
-        T: Send,
         T: Unsize<Dyn>,
         Dyn: 'static,
     {
@@ -209,6 +214,7 @@ where
     }
 
     #[inline]
+    #[must_use]
     /// Retrieves `&Dyn` from [`FuseBox`].
     pub fn get(&self, n: usize) -> Option<&Dyn> {
         if self.len() <= n {
@@ -217,11 +223,13 @@ where
         unsafe { Some(&*self.get_raw(n)) }
     }
 
+    #[must_use]
     /// Returns an iterator over `&Dyn` stored in this [`FuseBox`]
     pub fn iter(&'_ self) -> Iter<'_, Dyn> {
         Iter::new(self)
     }
 
+    #[must_use]
     /// Returns an iterator over `&mut Dyn` stored in this [`FuseBox`].
     pub fn iter_mut(&'_ mut self) -> IterMut<'_, Dyn> {
         IterMut::new(self)

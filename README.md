@@ -7,6 +7,10 @@ I personally use it in [pcmg](https://github.com/JohnDowson/pcmg) audio synthesi
 
 # Changelog
 
+## 0.8.0
+- `push_unsafe` removed from public API
+- `push` no longer requires `T: Send`, instead `Send` and `Sync` are implemented for `FuseBox<Dyn>` depending on wether `Dyn` is
+
 ## 0.7.0
 - Improved iteration performance by using two pointer technique
 

@@ -1,10 +1,12 @@
 [package]
 name = "fusebox"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 description = "Mostly safe and sound append-only collection of trait objects."
 repository = "https://github.com/JohnDowson/fusebox"
 license-file = "LICENSE"
+categories = ["data-structures"]
+keywords = ["trait", "dynamic", "collection", "heterogeneous"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
