@@ -111,12 +111,12 @@ where
     }
 
     #[inline]
-    fn realloc(&mut self, min_size: usize) {
+    fn realloc(&mut self, min_layout: Layout) {
         if self.cap_bytes == 0 {
+            self.max_align = min_layout.align();
             unsafe {
-                let layout = Layout::from_size_align_unchecked(min_size, self.max_align);
-                self.cap_bytes = layout.pad_to_align().size();
-                let new = alloc(layout);
+                self.cap_bytes = min_layout.pad_to_align().size();
+                let new = alloc(min_layout);
                 self.inner = NonNull::new_unchecked(new);
             }
             return;
@@ -124,12 +124,15 @@ where
         let old = self.inner;
         let old_layout =
             unsafe { Layout::from_size_align_unchecked(self.cap_bytes, self.max_align) };
+        if self.max_align < min_layout.align() {
+            self.max_align = min_layout.align();
+        }
         let size = if self.cap_bytes == 0 {
-            min_size
+            min_layout.size()
         } else {
             self.cap_bytes
                 .checked_mul(2)
-                .and_then(|s| s.checked_add(min_size))
+                .and_then(|s| s.checked_add(min_layout.size()))
                 .expect("New capacity overflowed usize")
         };
         unsafe {
@@ -159,11 +162,8 @@ where
             unsafe { self.inner.as_ptr().add(offset).cast::<T>().write(v) }
             self.headers.push(header);
         } else {
-            if self.max_align < layout.align() {
-                self.max_align = layout.align();
-            }
-            if self.cap_bytes - offset < layout.size() {
-                self.realloc(layout.size());
+            if self.cap_bytes.saturating_sub(offset) < layout.size() {
+                self.realloc(layout);
             }
 
             unsafe { self.inner.as_ptr().add(offset).cast::<T>().write(v) }

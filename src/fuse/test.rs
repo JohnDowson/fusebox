@@ -40,6 +40,19 @@ fn silly() {
 }
 
 #[test]
+// https://github.com/JohnDowson/fusebox/issues/4
+fn issue4() {
+    let mut fb = FuseBox::<dyn Debug>::default();
+
+    fb.push(42u8);
+    fb.push(1337_u128);
+
+    for v in fb.iter() {
+        println!("{v:?}")
+    }
+}
+
+#[test]
 fn mutate() {
     trait ShlDebug: ShlAssign<u8> + Debug {}
     impl<T> ShlDebug for T where T: ShlAssign<u8> + Debug {}
