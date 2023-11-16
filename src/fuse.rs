@@ -117,10 +117,17 @@ where
             unsafe {
                 self.cap_bytes = min_layout.pad_to_align().size();
                 let new = alloc(min_layout);
+                if new.is_null() {
+                    panic!(
+                        "Failed to allocate memory for {}",
+                        std::any::type_name::<Self>()
+                    )
+                }
                 self.inner = NonNull::new_unchecked(new);
             }
             return;
         }
+
         let old = self.inner;
         let old_layout =
             unsafe { Layout::from_size_align_unchecked(self.cap_bytes, self.max_align) };
@@ -162,7 +169,9 @@ where
             unsafe { self.inner.as_ptr().add(offset).cast::<T>().write(v) }
             self.headers.push(header);
         } else {
-            if self.cap_bytes.saturating_sub(offset) < layout.size() {
+            if self.cap_bytes.saturating_sub(offset) < layout.size()
+                || layout.align() > self.max_align
+            {
                 self.realloc(layout);
             }
 

@@ -2,10 +2,13 @@
 Mostly safe and sound append-only collection of trait objects.
 
 ## Why?
-This avoids extra indirection of `Vec<dyn Trait>`, which might matter for you.
+This avoids extra indirection of `Vec<Box<dyn Trait>>`, which might matter for you.
 I personally use it in [pcmg](https://github.com/JohnDowson/pcmg) audio synthesizer for fusing together multiple filters and oscillators.
 
 # Changelog
+## 0.8.3
+- Alignment bug in reallocation logic (#5)
+
 ## 0.8.2
 - Fix bug in reallocation logic (#4)
 

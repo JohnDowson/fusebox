@@ -1,6 +1,6 @@
 [package]
 name = "fusebox"
-version = "0.8.2"
+version = "0.8.3"
 edition = "2021"
 description = "Mostly safe and sound append-only collection of trait objects."
 repository = "https://github.com/JohnDowson/fusebox"
@@ -11,11 +11,12 @@ keywords = ["trait", "dynamic", "collection", "heterogeneous"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-bench = ["dep:criterion", "dep:rand", "dep:pprof", "dep:bumpalo"]
+# bench = ["dep:criterion", "dep:rand", "dep:pprof", "dep:bumpalo"]
+bench = ["dep:criterion", "dep:pprof", "dep:bumpalo"]
 
 [dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"], optional = true }
-rand = { version = "0.8.5", optional = true }
+rand = { version = "0.8.5", optional = false }
 pprof = { version = "0.11.0", features = [
     "flamegraph",
     "criterion",

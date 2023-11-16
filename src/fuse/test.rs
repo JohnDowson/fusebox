@@ -52,6 +52,24 @@ fn issue4() {
     }
 }
 
+#[allow(clippy::all)]
+#[test]
+// https://github.com/JohnDowson/fusebox/issues/5
+fn issue5() {
+    let mut x: FuseBox<dyn Debug> = FuseBox::new();
+    x.push(0_u8);
+    x.push(0_u8);
+
+    x.push(0_u16);
+    x.push(0_u8);
+    x.push(0_u8);
+    x.push(0_u8);
+    x.push(0_u8);
+
+    x.push(0_u16);
+    x.push(0_u32);
+}
+
 #[test]
 fn mutate() {
     trait ShlDebug: ShlAssign<u8> + Debug {}
